@@ -196,6 +196,10 @@ void Canvas::load_mesh(Mesh* m, bool is_reload)
     meshInfo = QStringLiteral("Triangles: %1\nX: [%2, %3]\nY: [%4, %5]\nZ: [%6, %7]").arg(m->triCount());
     for(int dIdx = 0; dIdx < 3; dIdx++) meshInfo = meshInfo.arg(lower[dIdx]).arg(upper[dIdx]);
     axis->setScale(lower, upper);
+    qDebug() << "Scale: " << scale;
+    qDebug() << "Center: " << center;
+    qDebug() << "Lower: " << lower;
+    qDebug() << "Upper: " << upper;
     update();
 
     delete m;

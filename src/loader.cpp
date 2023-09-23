@@ -118,9 +118,6 @@ Mesh* mesh_from_verts(uint32_t tri_count, QVector<Vertex>& verts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
-
 Mesh* Loader::load_obj()
 {
     QFile file(filename);
