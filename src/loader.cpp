@@ -118,9 +118,69 @@ Mesh* mesh_from_verts(uint32_t tri_count, QVector<Vertex>& verts)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+QMap<QString, Material> load_mtl(const QString& filename)
+{
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        qDebug() << "Error: Unable to open file: " << filename;
+        return QMap<QString, Material>();
+    }
+
+    QMap<QString, Material> materials;
+    Material currentMaterial;
+    QString currentMaterialName;
+
+    while (!file.atEnd())
+    {
+        QByteArray line = file.readLine();
+        QList<QByteArray> parts = line.split(' ');
+
+        if (parts[0] == "newmtl")
+        {
+            currentMaterialName = parts[1].trimmed();
+        }
+        else if (parts[0] == "Ka")
+        {
+            currentMaterial.ambient[0] = parts[1].toFloat();
+            currentMaterial.ambient[1] = parts[2].toFloat();
+            currentMaterial.ambient[2] = parts[3].toFloat();
+        }
+        else if (parts[0] == "Kd")
+        {
+            currentMaterial.diffuse[0] = parts[1].toFloat();
+            currentMaterial.diffuse[1] = parts[2].toFloat();
+            currentMaterial.diffuse[2] = parts[3].toFloat();
+        }
+        else if (parts[0] == "Ks")
+        {
+            currentMaterial.specular[0] = parts[1].toFloat();
+            currentMaterial.specular[1] = parts[2].toFloat();
+            currentMaterial.specular[2] = parts[3].toFloat();
+        }
+        else if (parts[0] == "Ns")
+        {
+            currentMaterial.shininess = parts[1].toFloat();
+        }
+        else if (line.trimmed().isEmpty())
+        {
+            materials.insert(currentMaterialName, currentMaterial);
+            currentMaterialName.clear();
+        }
+    }
+
+    if (!currentMaterialName.isEmpty())
+    {
+        materials.insert(currentMaterialName, currentMaterial);
+    }
+
+    return materials;
+}
+
+
+
 Mesh* Loader::load_obj()
 {
-    qDebug() << "Loading file: " << filename;
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly))
     {
@@ -130,13 +190,28 @@ Mesh* Loader::load_obj()
 
     QVector<Vertex> verts;
     QVector<GLuint> indices;
+    QMap<QString, Material> materials;
+    Material currentMaterial;
 
     while (!file.atEnd())
     {
         QByteArray line = file.readLine();
         QList<QByteArray> parts = line.split(' ');
 
-        if (parts[0] == "v")
+        if (parts[0] == "mtllib")
+        {
+            QString mtlFilename = parts[1].trimmed();
+            QDir dir(QFileInfo(filename).absoluteDir());
+            QString absoluteMtlFilename = dir.absoluteFilePath(mtlFilename);
+            qDebug() << "Loading material file: " << absoluteMtlFilename;
+            materials = load_mtl(absoluteMtlFilename);
+        }
+        else if (parts[0] == "usemtl")
+        {
+            QString materialName = parts[1].trimmed();
+            currentMaterial = materials[materialName];
+        }
+        else if (parts[0] == "v")
         {
             // OBJ vertices are 1-indexed, so we add a dummy vertex at the start
             if (verts.empty())
@@ -147,7 +222,7 @@ Mesh* Loader::load_obj()
             float x = parts[1].toFloat();
             float y = parts[2].toFloat();
             float z = parts[3].toFloat();
-            verts.push_back(Vertex(x, y, z));
+            verts.push_back(Vertex(x, y, z, currentMaterial));
         }
         else if (parts[0] == "f")
         {

@@ -167,6 +167,7 @@ auto StepToObj(std::string stepFilePath) -> QString {
         return {};
     }
     qDebug() << "📄 File successfully read: " << QString::fromStdString(stepFilePath);
+    
     // Create a STEP file
     Handle(TDocStd_Document) doc;
     Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
@@ -176,11 +177,6 @@ auto StepToObj(std::string stepFilePath) -> QString {
     Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
     TDF_LabelSequence seq;
     shapeTool->GetFreeShapes(seq); // Get top-level assemblies
-
-    // for (Standard_Integer i = 1; i <= seq.Length(); i++) {
-    //     TDF_Label label = seq.Value(i);
-    //     PrintShapeTree(label, 0);
-    // }
 
     // If there are no shapes, return
     if (seq.Length() < 1) {
@@ -236,24 +232,9 @@ auto StepToObj(std::string stepFilePath) -> QString {
         return {};
     }
 
-    // qDebug() << "Successfully wrote to OBJ file: " << QString::fromStdString(objFilePath);
-
-    // // Echo the contents of the OBJ file
-    // QFile objFile(QString::fromStdString(objFilePath));
-    // if (objFile.open(QIODevice::ReadOnly)) {
-    //     QTextStream in(&objFile);
-    //     while (!in.atEnd()) {
-    //         QString line = in.readLine();
-    //         qDebug() << line;
-    //     }
-    //     objFile.close();
-    // } else {
-    //     qDebug() << "❌ Failed to open OBJ file for reading: " << QString::fromStdString(objFilePath);
-    // }
-
     // Render the OBJ in the canvas
     QString qObjFilePath = QString::fromStdString(objFilePath);
-    qDebug() << "\033[32m" << "✅ Successfully converted STEP to OBJ: " << qObjFilePath << "\033[0m";
+    qDebug() << "✅ Successfully converted STEP to OBJ: " << qObjFilePath;
     qDebug() << "\n\n";
     return qObjFilePath;
 }

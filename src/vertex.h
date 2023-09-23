@@ -3,6 +3,13 @@
 
 #include <QtOpenGL/QtOpenGL>
 
+struct Material
+{
+    GLfloat ambient[3] = {0.0f, 0.0f, 0.0f};
+    GLfloat diffuse[3] = {0.0f, 0.0f, 0.0f};
+    GLfloat specular[3] = {0.0f, 0.0f, 0.0f};
+    GLfloat shininess = 0.0f;
+};
 /*
  *  Represents an optionally-indexed vertex in space
  */
@@ -10,8 +17,10 @@ struct Vertex
 {
     Vertex() {}
     Vertex(float x, float y, float z) : x(x), y(y), z(z) {}
+    Vertex(float x, float y, float z, Material m) : x(x), y(y), z(z), material(m) {}
 
     GLfloat x, y, z;
+    Material material;
     GLuint i=0;
 
     bool operator!=(const Vertex& rhs) const
@@ -26,5 +35,7 @@ struct Vertex
         else                    return false;
     }
 };
+
+
 
 #endif
