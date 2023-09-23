@@ -178,6 +178,11 @@ Window::Window(QWidget *parent) :
     splitter->addWidget(canvas);
     setCentralWidget(splitter);
 
+    // Set the initial sizes of the widgets in the splitter
+    QList<int> sizes;
+    sizes << 200 << 800; // 200 for the tree widget, 800 for the canvas
+    splitter->setSizes(sizes);
+
     meshlightprefs = new ShaderLightPrefs(this, canvas);
 
     QObject::connect(drawModePrefs_action, &QAction::triggered,this,&Window::on_drawModePrefs);
@@ -753,7 +758,10 @@ bool Window::load_step(const QString& filename, bool is_reload) {
     treeWidget->setHeaderLabels(headers);
 
     std::string stepFilePath = filename.toStdString();
-    step_to_tree(stepFilePath, treeWidget);
+    step_to_tree(stepFilePath, treeWidget); 
+
+    treeWidget->resizeColumnToContents(0);
+    treeWidget->resizeColumnToContents(1);
 
     tree_->setModel(treeWidget->model());
     tree_->expandAll();

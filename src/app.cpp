@@ -14,6 +14,7 @@ App::App(int& argc, char *argv[]) :
     else
         window->load_stl(":gl/sphere.stl");
     window->show();
+    window->showMaximized();
 }
 
 App::~App()
