@@ -14,6 +14,117 @@ const QString Window::DRAW_MODE_KEY = "drawMode";
 const QString Window::WINDOW_GEOM_KEY = "windowGeometry";
 const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 
+
+#include <STEPControl_Reader.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TDF_ChildIterator.hxx>
+
+#include <iostream>
+#include <STEPControl_Reader.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDataStd_Name.hxx>
+
+#include <STEPCAFControl_Reader.hxx>
+#include <TDF_Label.hxx>
+#include <TDF_ChildIterator.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDataStd_Name.hxx>
+
+// Define some ANSI color codes
+#define RESET   "\033[0m"
+#define BLACK   "\033[30m"      /* Black */
+#define RED     "\033[31m"      /* Red */
+#define GREEN   "\033[32m"      /* Green */
+#define YELLOW  "\033[33m"      /* Yellow */
+#define BLUE    "\033[34m"      /* Blue */
+#define MAGENTA "\033[35m"      /* Magenta */
+#define CYAN    "\033[36m"      /* Cyan */
+#define WHITE   "\033[37m"      /* White */
+
+void PrintShapeTree(const TDF_Label& label, QTreeWidgetItem *parentItem, int depth = 0) {
+    for (int i = 0; i < depth; ++i) {
+        std::cout << "  ";
+    }
+
+    std::string strName = "Unnamed";
+    std::string shapeName = "Unknown";
+    TopoDS_Shape shape;
+    if (XCAFDoc_ShapeTool::GetShape(label, shape)) {
+        shapeName = shape.TShape()->DynamicType()->Name();
+        // Check if the label has a name
+        Handle(TDataStd_Name) name;
+        if (label.FindAttribute(TDataStd_Name::GetID(), name)) {
+            TCollection_AsciiString asciiName(name->Get());
+            strName = asciiName.ToCString();
+        }
+
+        std::cout << std::endl;
+    } else {
+        std::cout << "Other entity" << std::endl;
+    }
+
+    QTreeWidgetItem *item = new QTreeWidgetItem();
+    item->setText(0, QString::fromStdString(strName));
+    item->setText(1, QString::fromStdString(shapeName));
+    parentItem->addChild(item);
+    item->setExpanded(true);
+
+    for (TDF_ChildIterator it(label); it.More(); it.Next()) {
+        PrintShapeTree(it.Value(), item, depth + 1);
+    }
+}
+
+void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
+
+    std::cout << GREEN << "👓 Rendering : " << stepFilePath << RESET << std::endl;
+
+    STEPCAFControl_Reader reader;
+    IFSelect_ReturnStatus status = reader.ReadFile(stepFilePath.c_str());
+
+    switch (status) {
+        case IFSelect_RetDone:
+            std::cout << "File read successfully." << std::endl;
+            break;
+        case IFSelect_RetVoid:
+            std::cout << "No data to read in the file." << std::endl;
+            return;
+        case IFSelect_RetStop:
+            std::cout << "File read stopped (possibly due to an error)." << std::endl;
+            return;
+        case IFSelect_RetFail:
+            std::cout << "File read failed." << std::endl;
+            return;
+        case IFSelect_RetError:
+            std::cout << "Error occurred while reading the file." << std::endl;
+            return;
+    }
+
+    if (status == IFSelect_RetDone) {
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-CAF", doc);
+        reader.Transfer(doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        TDF_LabelSequence seq;
+        shapeTool->GetFreeShapes(seq); // Get top-level assemblies
+
+        for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+            TDF_Label label = seq.Value(i);
+            PrintShapeTree(label, treeWidget->invisibleRootItem(), 0);
+        }
+    }
+}
+
 Window::Window(QWidget *parent) :
     QMainWindow(parent),
     open_action(new QAction("Open", this)),
@@ -631,6 +742,22 @@ bool Window::load_obj(const QString& filename, bool is_reload)
 }
 
 bool Window::load_step(const QString& filename, bool is_reload) {
+
+    qDebug() << "Loading STEP file: " << filename;
+    if (!open_action->isEnabled())  return false;
+
+    QTreeWidget *treeWidget = new QTreeWidget;
+    treeWidget->setColumnCount(2);
+    QStringList headers;
+    headers << "Name" << "Shape Type";
+    treeWidget->setHeaderLabels(headers);
+
+    std::string stepFilePath = filename.toStdString();
+    step_to_tree(stepFilePath, treeWidget);
+
+    tree_->setModel(treeWidget->model());
+    tree_->expandAll();
+
     tree_->show();
     return true;
 }

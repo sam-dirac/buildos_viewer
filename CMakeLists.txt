@@ -58,6 +58,11 @@ find_package(Qt5 5.14 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
 
+find_package(OpenCASCADE REQUIRED)
+message("OpenCASCADE Include Dir: ${OpenCASCADE_INCLUDE_DIR}")
+message("OpenCASCADE Libraries: ${OpenCASCADE_LIBRARIES}")
+
+
 #add resources to RCC
 qt5_add_resources(Project_Resources_RCC ${Project_Resources})
 
@@ -65,7 +70,7 @@ qt5_add_resources(Project_Resources_RCC ${Project_Resources})
 set_property(SOURCE ${Project_Resources_RCC} PROPERTY SKIP_AUTOGEN ON)
 
 #include opengl files. 
-include_directories(${QT_QTOPENGL_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR} )
+include_directories(${QT_QTOPENGL_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR})
 
 if(WIN32)
   add_executable(fstl WIN32 ${Project_Sources} ${Project_Headers} ${Project_Resources_RCC} ${Icon_Resource})
@@ -77,7 +82,7 @@ else()
   add_executable(fstl ${Project_Sources} ${Project_Headers} ${Project_Resources_RCC} ${Icon_Resource})
 endif(WIN32)
 
-target_link_libraries(fstl Qt5::Widgets Qt5::Core Qt5::Gui Qt5::OpenGL ${OPENGL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(fstl Qt5::Widgets Qt5::Core Qt5::Gui Qt5::OpenGL ${OPENGL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${OpenCASCADE_LIBRARIES})
 
 # Add version definitions to use within the code. 
 target_compile_definitions(fstl PRIVATE -DFSTL_VERSION="${PROJECT_VERSION}")
