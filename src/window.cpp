@@ -254,51 +254,20 @@ auto StepToObj(std::string stepFilePath) -> QString {
         qDebug() << "❌ Failed to open OBJ file: " << QString::fromStdString(objFilePath);
         return {};
     }
-    // Create a temporary file to store the stripped OBJ data
-    std::filesystem::path p(objFilePath);
-    std::string tempObjFilePath = p.parent_path().string() + "/temp_" + p.filename().string();
-    std::ofstream tempObjFile(tempObjFilePath);
-    if (!tempObjFile.is_open()) {
-        qDebug() << "❌ Failed to open temporary OBJ file: " << QString::fromStdString(tempObjFilePath);
-        return {};
-    }
 
     std::string line;
     while (std::getline(objFile, line)) {
-        // Check if the line starts with a fundamental tag (v, vt, vn, f)
-        if (line.rfind("v ", 0) == 0 || line.rfind("vt ", 0) == 0 || line.rfind("vn ", 0) == 0 || line.rfind("f ", 0) == 0) {
-            tempObjFile << line << std::endl;
-        } else {
-            // Print debug information about what's being removed
-            qDebug() << "Removed non-fundamental tag: " << QString::fromStdString(line);
-        }
+        std::cout << line << std::endl;
     }
 
-    // Close the files
+    // Close the file
     objFile.close();
-    tempObjFile.close();
-
-    // Remove the original OBJ file and rename the temporary file
-    if (std::remove(objFilePath.c_str()) != 0) {
-        qDebug() << "❌ Failed to remove original OBJ file: " << QString::fromStdString(objFilePath);
-        return {};
-    }
-    if (std::rename(tempObjFilePath.c_str(), objFilePath.c_str()) != 0) {
-        qDebug() << "❌ Failed to rename temporary OBJ file: " << QString::fromStdString(tempObjFilePath);
-        return {};
-    }
-    qDebug() << "✅ Successfully replaced original OBJ file with stripped version.";
-
-    // Print debug information about the final result filepath
-    std::cout << "Final OBJ File Path: " << objFilePath << std::endl;
 
     // Verify that the file exists
-    if (std::filesystem::exists(objFilePath)) {
-        std::cout << "File exists." << std::endl;
-    } else {
+    if (!std::filesystem::exists(objFilePath)) {
         std::cout << "File does not exist." << std::endl;
+        return {};
     }
-
 
     // Render the OBJ in the canvas
     QString qObjFilePath = QString::fromStdString(objFilePath);
