@@ -5,6 +5,7 @@
 #include <QActionGroup>
 #include <QFileSystemWatcher>
 #include <QCollator>
+#include <QTreeView>
 
 class Canvas;
 class ShaderLightPrefs;
@@ -16,6 +17,7 @@ public:
     explicit Window(QWidget* parent=0);
     bool load_stl(const QString& filename, bool is_reload=false);
     bool load_obj(const QString& filename, bool is_reload=false);
+    bool load_step(const QString& filename, bool is_reload=false);
     bool load_prev(void);
     bool load_next(void);
 
@@ -110,6 +112,7 @@ private:
     QFileSystemWatcher* watcher;
 
     Canvas* canvas;
+    QTreeView* tree_;
 
     ShaderLightPrefs* meshlightprefs;
 };

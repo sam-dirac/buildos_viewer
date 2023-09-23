@@ -60,7 +60,12 @@ Window::Window(QWidget *parent) :
     QSurfaceFormat::setDefaultFormat(format);
     
     canvas = new Canvas(format, this);
-    setCentralWidget(canvas);
+    QSplitter *splitter = new QSplitter(this);
+    tree_ = new QTreeView(splitter);
+    tree_->hide(); // tree_ is hidden by default
+    splitter->addWidget(tree_);
+    splitter->addWidget(canvas);
+    setCentralWidget(splitter);
 
     meshlightprefs = new ShaderLightPrefs(this, canvas);
 
@@ -573,6 +578,7 @@ bool Window::load_stl(const QString& filename, bool is_reload)
     }
 
     loader->start();
+    tree_->hide();
     return true;
 }
 
@@ -620,6 +626,12 @@ bool Window::load_obj(const QString& filename, bool is_reload)
     qDebug() << "Loader start";
     loader->start();
     qDebug() << "Exit true";
+    tree_->hide();
+    return true;
+}
+
+bool Window::load_step(const QString& filename, bool is_reload) {
+    tree_->show();
     return true;
 }
 
@@ -636,6 +648,9 @@ void Window::dragEnterEvent(QDragEnterEvent *event)
                 event->acceptProposedAction();
             } else if (filePath.endsWith(".obj")) {
                 qDebug() << "Drag event with .obj file";
+                event->acceptProposedAction();
+            } else if (filePath.endsWith(".step")) {
+                qDebug() << "Drag event with .step file";
                 event->acceptProposedAction();
             } else {
                 qDebug() << "Drag event with unsupported file type";
@@ -657,6 +672,9 @@ void Window::dropEvent(QDropEvent *event)
     } else if (filePath.endsWith(".obj")) {
         qDebug() << "Drop event with .obj file";
         load_obj(filePath);
+    } else if (filePath.endsWith(".step")) {
+        qDebug() << "Drop event with .step file";
+        load_step(filePath);
     } else {
         qDebug() << "Drop event with unsupported file type";
     }
