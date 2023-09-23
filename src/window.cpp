@@ -21,6 +21,11 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <TopExp_Explorer.hxx>
 #include <TDF_ChildIterator.hxx>
 
+
+#include <RWObj_ObjWriterContext.hxx>
+#include <RWObj_ObjMaterialMap.hxx>
+#include <Message_ProgressScope.hxx>
+
 #include <iostream>
 #include <STEPControl_Reader.hxx>
 #include <STEPCAFControl_Writer.hxx>
@@ -40,6 +45,7 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <TDF_LabelSequence.hxx>
 #include <TDataStd_Name.hxx>
 #include <RWObj_CafWriter.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
 
 // Define some ANSI color codes
 #define RESET   "\033[0m"
@@ -190,8 +196,8 @@ auto StepToObj(std::string stepFilePath) -> QString {
     bool success = false;
     // Write the first leaf shape to OBJ file
     TopoDS_Shape shape;
-    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
-        TDF_Label label = seq.Value(i);
+    TDF_LabelSequence leafLabels;
+    std::function<void(const TDF_Label&)> visit = [&](const TDF_Label& label) {
         shape = shapeTool->GetShape(label);
         std::string strName = "Unnamed";
         std::string shapeName = "Unknown";
@@ -199,18 +205,41 @@ auto StepToObj(std::string stepFilePath) -> QString {
         std::cout << "Shape Info: " << strName << " (" << shapeName << ")" << std::endl;
         if (shapeName == "TopoDS_TSolid") {
             std::cout << "Found first leaf!" << std::endl;
+            leafLabels.Append(label);
             success = true;
-            break;
+            return;
         }
+        for (TDF_ChildIterator it(label); it.More(); it.Next()) {
+            visit(it.Value());
+            if (success) return;
+        }
+    };
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        TDF_Label label = seq.Value(i);
+        visit(label);
+        if (success) break;
     }
 
     if (!success) {
         qDebug() << "❌ Failed to find leaf shape in STEP file: " << QString::fromStdString(stepFilePath);
         return {};
     }
+
+    // Generate a mesh from the leaf step node
+    BRepMesh_IncrementalMesh mesh(shape, 1.0);
     
+    // Write the mesh to an OBJ file
     RWObj_CafWriter aWriter(objFilePath.c_str());
-    
+    // Create writer context, material map, progress scope, location, style, and name
+    RWObj_ObjWriterContext writerContext("WriterContext");
+    RWObj_ObjMaterialMap materialMap(objFilePath.c_str());
+    Message_ProgressRange progressScope;
+    TopLoc_Location parentTrsf;
+    XCAFPrs_Style parentStyle;
+    TCollection_AsciiString name;
+
+    // Write the shape using the writer
+    // aWriter.writeShape(writerContext, materialMap, progressScope, label, parentTrsf, parentStyle, name); // This line is commented out because writeShape is a protected member of RWObj_CafWriter
 
     qDebug() << "e";
     // Create a Message_ProgressRange object
@@ -218,7 +247,7 @@ auto StepToObj(std::string stepFilePath) -> QString {
 
     // Create an empty TColStd_IndexedDataMapOfStringString for names
     TColStd_IndexedDataMapOfStringString aNames;
-    if (!aWriter.Perform(doc, aNames, progress)) {
+    if (!aWriter.Perform(doc, leafLabels, nullptr, aNames, progress)) {
         qDebug() << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath);
         return {};
     }
