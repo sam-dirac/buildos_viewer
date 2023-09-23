@@ -23,6 +23,7 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 
 #include <iostream>
 #include <STEPControl_Reader.hxx>
+#include <STEPCAFControl_Writer.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TDocStd_Document.hxx>
 #include <XCAFApp_Application.hxx>
@@ -51,13 +52,7 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #define CYAN    "\033[36m"      /* Cyan */
 #define WHITE   "\033[37m"      /* White */
 
-void PrintShapeTree(const TDF_Label& label, QTreeWidgetItem *parentItem, int depth = 0) {
-    for (int i = 0; i < depth; ++i) {
-        std::cout << "  ";
-    }
-
-    std::string strName = "Unnamed";
-    std::string shapeName = "Unknown";
+void ExtractShapeInfo(const TDF_Label& label, std::string& strName, std::string& shapeName) {
     TopoDS_Shape shape;
     if (XCAFDoc_ShapeTool::GetShape(label, shape)) {
         shapeName = shape.TShape()->DynamicType()->Name();
@@ -67,11 +62,33 @@ void PrintShapeTree(const TDF_Label& label, QTreeWidgetItem *parentItem, int dep
             TCollection_AsciiString asciiName(name->Get());
             strName = asciiName.ToCString();
         }
+    }
+}
 
-        std::cout << std::endl;
+void PrintShapeTree(const TDF_Label& label, int depth = 0) {
+    for (int i = 0; i < depth; ++i) {
+        std::cout << "  ";
+    }
+
+    std::string strName = "Unnamed";
+    std::string shapeName = "Unknown";
+    ExtractShapeInfo(label, strName, shapeName);
+
+    if (shapeName != "Unknown") {
+        std::cout << strName << " (" << shapeName << ")" << std::endl;
     } else {
         std::cout << "Other entity" << std::endl;
     }
+
+    for (TDF_ChildIterator it(label); it.More(); it.Next()) {
+        PrintShapeTree(it.Value(), depth + 1);
+    }
+}
+
+void AddShapeToTreeWidget(const TDF_Label& label, QTreeWidgetItem *parentItem) {
+    std::string strName = "Unnamed";
+    std::string shapeName = "Unknown";
+    ExtractShapeInfo(label, strName, shapeName);
 
     QTreeWidgetItem *item = new QTreeWidgetItem();
     item->setText(0, QString::fromStdString(strName));
@@ -80,7 +97,7 @@ void PrintShapeTree(const TDF_Label& label, QTreeWidgetItem *parentItem, int dep
     item->setExpanded(true);
 
     for (TDF_ChildIterator it(label); it.More(); it.Next()) {
-        PrintShapeTree(it.Value(), item, depth + 1);
+        AddShapeToTreeWidget(it.Value(), item);
     }
 }
 
@@ -121,7 +138,7 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
 
         for (Standard_Integer i = 1; i <= seq.Length(); i++) {
             TDF_Label label = seq.Value(i);
-            PrintShapeTree(label, treeWidget->invisibleRootItem(), 0);
+            AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
         }
     }
 }
@@ -143,35 +160,66 @@ auto StepToObj(std::string stepFilePath) -> QString {
         qDebug() << "Error reading file: " << QString::fromStdString(stepFilePath);
         return {};
     }
-
+    qDebug() << "📄 File successfully read: " << QString::fromStdString(stepFilePath);
+    // Create a STEP file
     Handle(TDocStd_Document) doc;
     Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
     app->NewDocument("MDTV-CAF", doc);
     reader.Transfer(doc);
 
+    qDebug() << "a";
+    
     Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
     TDF_LabelSequence seq;
     shapeTool->GetFreeShapes(seq); // Get top-level assemblies
 
-    // Check if there are any shapes to write
-    if (seq.Length() == 0) {
-        qDebug() << "No shapes to write to OBJ file: " << QString::fromStdString(objFilePath);
-        return {};
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        TDF_Label label = seq.Value(i);
+        PrintShapeTree(label, 0);
     }
 
-    // Write to OBJ file
+    qDebug() << "b";
+    // If there are no shapes, return
+    if (seq.Length() < 1) {
+        qDebug() << "❌ No shapes found in STEP file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+    
+
+    qDebug() << "d";
+    bool success = false;
+    // Write the first leaf shape to OBJ file
+    TopoDS_Shape shape;
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        TDF_Label label = seq.Value(i);
+        shape = shapeTool->GetShape(label);
+        std::string strName = "Unnamed";
+        std::string shapeName = "Unknown";
+        ExtractShapeInfo(label, strName, shapeName);
+        std::cout << "Shape Info: " << strName << " (" << shapeName << ")" << std::endl;
+        if (shapeName == "TopoDS_TSolid") {
+            std::cout << "Found first leaf!" << std::endl;
+            success = true;
+            break;
+        }
+    }
+
+    if (!success) {
+        qDebug() << "❌ Failed to find leaf shape in STEP file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+    
     RWObj_CafWriter aWriter(objFilePath.c_str());
     
-    // Create an empty TDF_LabelSequence for labels
-    TDF_LabelSequence aLabelSequence;
 
+    qDebug() << "e";
     // Create a Message_ProgressRange object
     Message_ProgressRange progress;
 
     // Create an empty TColStd_IndexedDataMapOfStringString for names
     TColStd_IndexedDataMapOfStringString aNames;
     if (!aWriter.Perform(doc, aNames, progress)) {
-        qDebug() << RED << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath) << RESET;
+        qDebug() << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath);
         return {};
     }
 
