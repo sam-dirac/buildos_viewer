@@ -172,27 +172,22 @@ auto StepToObj(std::string stepFilePath) -> QString {
     Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
     app->NewDocument("MDTV-CAF", doc);
     reader.Transfer(doc);
-
-    qDebug() << "a";
     
     Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
     TDF_LabelSequence seq;
     shapeTool->GetFreeShapes(seq); // Get top-level assemblies
 
-    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
-        TDF_Label label = seq.Value(i);
-        PrintShapeTree(label, 0);
-    }
+    // for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+    //     TDF_Label label = seq.Value(i);
+    //     PrintShapeTree(label, 0);
+    // }
 
-    qDebug() << "b";
     // If there are no shapes, return
     if (seq.Length() < 1) {
         qDebug() << "❌ No shapes found in STEP file: " << QString::fromStdString(stepFilePath);
         return {};
     }
     
-
-    qDebug() << "d";
     bool success = false;
     // Write the first leaf shape to OBJ file
     TopoDS_Shape shape;
@@ -202,9 +197,9 @@ auto StepToObj(std::string stepFilePath) -> QString {
         std::string strName = "Unnamed";
         std::string shapeName = "Unknown";
         ExtractShapeInfo(label, strName, shapeName);
-        std::cout << "Shape Info: " << strName << " (" << shapeName << ")" << std::endl;
         if (shapeName == "TopoDS_TSolid") {
-            std::cout << "Found first leaf!" << std::endl;
+            std::cout << "✅ Found first leaf!" << std::endl;
+            std::cout << "ℹ️  Shape Info: " << strName << " (" << shapeName << ")" << std::endl << std::endl;
             leafLabels.Append(label);
             success = true;
             return;
@@ -230,18 +225,7 @@ auto StepToObj(std::string stepFilePath) -> QString {
     
     // Write the mesh to an OBJ file
     RWObj_CafWriter aWriter(objFilePath.c_str());
-    // Create writer context, material map, progress scope, location, style, and name
-    RWObj_ObjWriterContext writerContext("WriterContext");
-    RWObj_ObjMaterialMap materialMap(objFilePath.c_str());
-    Message_ProgressRange progressScope;
-    TopLoc_Location parentTrsf;
-    XCAFPrs_Style parentStyle;
-    TCollection_AsciiString name;
-
-    // Write the shape using the writer
-    // aWriter.writeShape(writerContext, materialMap, progressScope, label, parentTrsf, parentStyle, name); // This line is commented out because writeShape is a protected member of RWObj_CafWriter
-
-    qDebug() << "e";
+    
     // Create a Message_ProgressRange object
     Message_ProgressRange progress;
 
@@ -252,11 +236,25 @@ auto StepToObj(std::string stepFilePath) -> QString {
         return {};
     }
 
-    qDebug() << "Successfully wrote to OBJ file: " << QString::fromStdString(objFilePath);
+    // qDebug() << "Successfully wrote to OBJ file: " << QString::fromStdString(objFilePath);
+
+    // // Echo the contents of the OBJ file
+    // QFile objFile(QString::fromStdString(objFilePath));
+    // if (objFile.open(QIODevice::ReadOnly)) {
+    //     QTextStream in(&objFile);
+    //     while (!in.atEnd()) {
+    //         QString line = in.readLine();
+    //         qDebug() << line;
+    //     }
+    //     objFile.close();
+    // } else {
+    //     qDebug() << "❌ Failed to open OBJ file for reading: " << QString::fromStdString(objFilePath);
+    // }
 
     // Render the OBJ in the canvas
     QString qObjFilePath = QString::fromStdString(objFilePath);
-    qDebug() << "Successfully converted STEP to OBJ: " << qObjFilePath;
+    qDebug() << "\033[32m" << "✅ Successfully converted STEP to OBJ: " << qObjFilePath << "\033[0m";
+    qDebug() << "\n\n";
     return qObjFilePath;
 }
 
@@ -846,9 +844,7 @@ bool Window::load_obj(const QString& filename, bool is_reload)
 
     canvas->set_status("Loading " + filename);
 
-    qDebug() << "Creating new Loader for OBJ file";
     Loader* loader = new Loader(this, filename, is_reload);
-    qDebug() << "Loader for OBJ file created";
 
     connect(loader, &Loader::started,
               this, &Window::disable_open);
@@ -923,20 +919,16 @@ bool Window::load_step(const QString& filename, bool is_reload) {
 
 void Window::dragEnterEvent(QDragEnterEvent *event)
 {
-    qDebug() << "Drag event initiated";
     if (event->mimeData()->hasUrls())
     {
         auto urls = event->mimeData()->urls();
         if (urls.size() == 1) {
             QString filePath = urls.front().path();
             if (filePath.endsWith(".stl")) {
-                qDebug() << "Drag event with .stl file";
                 event->acceptProposedAction();
             } else if (filePath.endsWith(".obj")) {
-                qDebug() << "Drag event with .obj file";
                 event->acceptProposedAction();
             } else if (filePath.endsWith(".step")) {
-                qDebug() << "Drag event with .step file";
                 event->acceptProposedAction();
             } else {
                 qDebug() << "Drag event with unsupported file type";

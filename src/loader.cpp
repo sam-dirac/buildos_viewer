@@ -120,7 +120,7 @@ Mesh* mesh_from_verts(uint32_t tri_count, QVector<Vertex>& verts)
 
 Mesh* Loader::load_obj()
 {
-    qDebug() << "Loader::load_obj()";
+    qDebug() << "Loading file: " << filename;
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly))
     {
@@ -171,6 +171,8 @@ Mesh* Loader::load_obj()
 
     std::vector<GLuint> flat_indices(indices.begin(), indices.end());
 
+    qDebug() << "🔺 Number of triangles: " << flat_indices.size() / 3;
+    qDebug() << "🔹 Number of vertices: " << flat_verts.size() / 3;
     return new Mesh(std::move(flat_verts), std::move(flat_indices));
 }
 
