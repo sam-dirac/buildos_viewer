@@ -21,6 +21,10 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <TopExp_Explorer.hxx>
 #include <TDF_ChildIterator.hxx>
 
+#include <Bnd_Box.hxx>
+#include <BRepBndLib.hxx>
+#include <filesystem>
+
 
 #include <RWObj_ObjWriterContext.hxx>
 #include <RWObj_ObjMaterialMap.hxx>
@@ -149,7 +153,6 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
     }
 }
 
-
 auto StepToObj(std::string stepFilePath) -> QString {
     qDebug() << "Starting conversion from STEP to OBJ";
     // Convert STEP to OBJ with OpenCascade
@@ -219,6 +222,19 @@ auto StepToObj(std::string stepFilePath) -> QString {
     // Generate a mesh from the leaf step node
     BRepMesh_IncrementalMesh mesh(shape, 1.0);
     
+    // Translate the mesh to center on the origin
+    Bnd_Box boundingBox;
+    BRepBndLib::Add(shape, boundingBox);
+    gp_Pnt center = boundingBox.CornerMax().XYZ() / 2 + boundingBox.CornerMin().XYZ() / 2;
+    gp_Trsf translation;
+    translation.SetTranslation(center, gp_Pnt(0, 0, 0));
+    shape.Move(translation);
+    
+    // Print debug information about the translation
+    std::cout << "Translation Info: " << std::endl;
+    std::cout << "Center: " << center.X() << ", " << center.Y() << ", " << center.Z() << std::endl;
+    std::cout << "Translation: " << translation.TranslationPart().X() << ", " << translation.TranslationPart().Y() << ", " << translation.TranslationPart().Z() << std::endl;
+    
     // Write the mesh to an OBJ file
     RWObj_CafWriter aWriter(objFilePath.c_str());
     
@@ -231,6 +247,58 @@ auto StepToObj(std::string stepFilePath) -> QString {
         qDebug() << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath);
         return {};
     }
+
+    // Open the OBJ file
+    std::ifstream objFile(objFilePath);
+    if (!objFile.is_open()) {
+        qDebug() << "❌ Failed to open OBJ file: " << QString::fromStdString(objFilePath);
+        return {};
+    }
+    // Create a temporary file to store the stripped OBJ data
+    std::filesystem::path p(objFilePath);
+    std::string tempObjFilePath = p.parent_path().string() + "/temp_" + p.filename().string();
+    std::ofstream tempObjFile(tempObjFilePath);
+    if (!tempObjFile.is_open()) {
+        qDebug() << "❌ Failed to open temporary OBJ file: " << QString::fromStdString(tempObjFilePath);
+        return {};
+    }
+
+    std::string line;
+    while (std::getline(objFile, line)) {
+        // Check if the line starts with a fundamental tag (v, vt, vn, f)
+        if (line.rfind("v ", 0) == 0 || line.rfind("vt ", 0) == 0 || line.rfind("vn ", 0) == 0 || line.rfind("f ", 0) == 0) {
+            tempObjFile << line << std::endl;
+        } else {
+            // Print debug information about what's being removed
+            qDebug() << "Removed non-fundamental tag: " << QString::fromStdString(line);
+        }
+    }
+
+    // Close the files
+    objFile.close();
+    tempObjFile.close();
+
+    // Remove the original OBJ file and rename the temporary file
+    if (std::remove(objFilePath.c_str()) != 0) {
+        qDebug() << "❌ Failed to remove original OBJ file: " << QString::fromStdString(objFilePath);
+        return {};
+    }
+    if (std::rename(tempObjFilePath.c_str(), objFilePath.c_str()) != 0) {
+        qDebug() << "❌ Failed to rename temporary OBJ file: " << QString::fromStdString(tempObjFilePath);
+        return {};
+    }
+    qDebug() << "✅ Successfully replaced original OBJ file with stripped version.";
+
+    // Print debug information about the final result filepath
+    std::cout << "Final OBJ File Path: " << objFilePath << std::endl;
+
+    // Verify that the file exists
+    if (std::filesystem::exists(objFilePath)) {
+        std::cout << "File exists." << std::endl;
+    } else {
+        std::cout << "File does not exist." << std::endl;
+    }
+
 
     // Render the OBJ in the canvas
     QString qObjFilePath = QString::fromStdString(objFilePath);
@@ -448,7 +516,7 @@ void Window::load_persist_settings(){
 
     autoreload_action->setChecked(settings.value(AUTORELOAD_KEY, true).toBool());
 
-    bool draw_axes = settings.value(DRAW_AXES_KEY, false).toBool();
+    bool draw_axes = settings.value(DRAW_AXES_KEY, true).toBool();
     canvas->draw_axes(draw_axes);
     axes_action->setChecked(draw_axes);
 

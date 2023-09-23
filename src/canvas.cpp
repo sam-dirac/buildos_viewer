@@ -177,6 +177,7 @@ void Canvas::resetTransform() {
 
 void Canvas::load_mesh(Mesh* m, bool is_reload)
 {
+    qDebug() << "Loading mesh into Canvas";
     delete mesh;
     mesh = new GLMesh(m);
     QVector3D lower(m->xmin(), m->ymin(), m->zmin());
