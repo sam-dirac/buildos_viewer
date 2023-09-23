@@ -6,6 +6,7 @@
 #include <QFileSystemWatcher>
 #include <QCollator>
 #include <QTreeView>
+#include <QSplitter>
 
 class Canvas;
 class ShaderLightPrefs;
@@ -113,6 +114,7 @@ private:
 
     Canvas* canvas;
     QTreeView* tree_;
+    QSplitter* splitter_;
 
     ShaderLightPrefs* meshlightprefs;
 };

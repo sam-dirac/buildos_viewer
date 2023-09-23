@@ -11,7 +11,6 @@ Loader::Loader(QObject* parent, const QString& filename, bool is_reload)
 
 void Loader::run()
 {
-    qDebug() << "Run";
     QFileInfo fileInfo(filename);
     QString extension = fileInfo.suffix().toLower();
     Mesh* mesh = nullptr;

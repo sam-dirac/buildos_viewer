@@ -38,6 +38,7 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDataStd_Name.hxx>
+#include <RWObj_CafWriter.hxx>
 
 // Define some ANSI color codes
 #define RESET   "\033[0m"
@@ -125,6 +126,63 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
     }
 }
 
+
+auto StepToObj(std::string stepFilePath) -> QString {
+    qDebug() << "Starting conversion from STEP to OBJ";
+    // Convert STEP to OBJ with OpenCascade
+    std::string objFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".obj";
+    QFile file(QString::fromStdString(objFilePath));
+    if (file.exists()) {
+        qDebug() << YELLOW << "Warning: OBJ file already exists, it will be overwritten: " << RESET << QString::fromStdString(objFilePath);
+    }
+
+    STEPCAFControl_Reader reader;
+    IFSelect_ReturnStatus status = reader.ReadFile(stepFilePath.c_str());
+
+    if (status != IFSelect_RetDone) {
+        qDebug() << "Error reading file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+
+    Handle(TDocStd_Document) doc;
+    Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+    app->NewDocument("MDTV-CAF", doc);
+    reader.Transfer(doc);
+
+    Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+    TDF_LabelSequence seq;
+    shapeTool->GetFreeShapes(seq); // Get top-level assemblies
+
+    // Check if there are any shapes to write
+    if (seq.Length() == 0) {
+        qDebug() << "No shapes to write to OBJ file: " << QString::fromStdString(objFilePath);
+        return {};
+    }
+
+    // Write to OBJ file
+    RWObj_CafWriter aWriter(objFilePath.c_str());
+    
+    // Create an empty TDF_LabelSequence for labels
+    TDF_LabelSequence aLabelSequence;
+
+    // Create a Message_ProgressRange object
+    Message_ProgressRange progress;
+
+    // Create an empty TColStd_IndexedDataMapOfStringString for names
+    TColStd_IndexedDataMapOfStringString aNames;
+    if (!aWriter.Perform(doc, aNames, progress)) {
+        qDebug() << RED << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath) << RESET;
+        return {};
+    }
+
+    qDebug() << "Successfully wrote to OBJ file: " << QString::fromStdString(objFilePath);
+
+    // Render the OBJ in the canvas
+    QString qObjFilePath = QString::fromStdString(objFilePath);
+    qDebug() << "Successfully converted STEP to OBJ: " << qObjFilePath;
+    return qObjFilePath;
+}
+
 Window::Window(QWidget *parent) :
     QMainWindow(parent),
     open_action(new QAction("Open", this)),
@@ -171,17 +229,20 @@ Window::Window(QWidget *parent) :
     QSurfaceFormat::setDefaultFormat(format);
     
     canvas = new Canvas(format, this);
-    QSplitter *splitter = new QSplitter(this);
-    tree_ = new QTreeView(splitter);
-    tree_->hide(); // tree_ is hidden by default
-    splitter->addWidget(tree_);
-    splitter->addWidget(canvas);
-    setCentralWidget(splitter);
 
-    // Set the initial sizes of the widgets in the splitter
+    canvas->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    splitter_ = new QSplitter(this);
+    tree_ = new QTreeView(splitter_);
+    tree_->hide(); // tree_ is hidden by default
+    splitter_->addWidget(tree_);
+    splitter_->addWidget(canvas);
+    setCentralWidget(splitter_);
+
+    // Set the initial sizes of the widgets in the splitter_
     QList<int> sizes;
     sizes << 200 << 800; // 200 for the tree widget, 800 for the canvas
-    splitter->setSizes(sizes);
+    splitter_->setSizes(sizes);
 
     meshlightprefs = new ShaderLightPrefs(this, canvas);
 
@@ -700,6 +761,9 @@ bool Window::load_stl(const QString& filename, bool is_reload)
 
 bool Window::load_obj(const QString& filename, bool is_reload)
 {
+    if (filename.isEmpty()) {
+        return false;
+    }
     qDebug() << "Loading OBJ file: " << filename;
     if (!open_action->isEnabled())  return false;
 
@@ -739,12 +803,11 @@ bool Window::load_obj(const QString& filename, bool is_reload)
         reload_action->setEnabled(true);
     }
 
-    qDebug() << "Loader start";
     loader->start();
-    qDebug() << "Exit true";
     tree_->hide();
     return true;
 }
+
 
 bool Window::load_step(const QString& filename, bool is_reload) {
 
@@ -767,6 +830,17 @@ bool Window::load_step(const QString& filename, bool is_reload) {
     tree_->expandAll();
 
     tree_->show();
+
+    QList<int> sizes;
+
+    int treeWidth = tree_->sizeHint().width();
+    int canvasWidth = splitter_->size().width() - treeWidth;
+    sizes << treeWidth << canvasWidth;
+    splitter_->setSizes(sizes);
+
+    auto qObjFilePath = StepToObj(stepFilePath);
+    load_obj(qObjFilePath);
+
     return true;
 }
 
