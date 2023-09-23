@@ -11,7 +11,19 @@ Loader::Loader(QObject* parent, const QString& filename, bool is_reload)
 
 void Loader::run()
 {
-    Mesh* mesh = load_stl();
+    qDebug() << "Run";
+    QFileInfo fileInfo(filename);
+    QString extension = fileInfo.suffix().toLower();
+    Mesh* mesh = nullptr;
+    
+    if (extension == "stl") {
+        mesh = load_stl();
+    } else if (extension == "obj") {
+        mesh = load_obj();
+    } else {
+        return;
+    }
+    
     if (mesh)
     {
         if (mesh->empty())
@@ -106,6 +118,62 @@ Mesh* mesh_from_verts(uint32_t tri_count, QVector<Vertex>& verts)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Mesh* Loader::load_obj()
+{
+    qDebug() << "Loader::load_obj()";
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        emit error_missing_file();
+        return NULL;
+    }
+
+    QVector<Vertex> verts;
+    QVector<GLuint> indices;
+
+    while (!file.atEnd())
+    {
+        QByteArray line = file.readLine();
+        QList<QByteArray> parts = line.split(' ');
+
+        if (parts[0] == "v")
+        {
+            // OBJ vertices are 1-indexed, so we add a dummy vertex at the start
+            if (verts.empty())
+            {
+                verts.push_back(Vertex(0, 0, 0));
+            }
+
+            float x = parts[1].toFloat();
+            float y = parts[2].toFloat();
+            float z = parts[3].toFloat();
+            verts.push_back(Vertex(x, y, z));
+        }
+        else if (parts[0] == "f")
+        {
+            // OBJ faces are defined by indices into the vertex array
+            for (int i = 1; i <= 3; ++i)
+            {
+                GLuint index = parts[i].toUInt();
+                indices.push_back(index);
+            }
+        }
+    }
+
+    std::vector<GLfloat> flat_verts;
+    flat_verts.reserve(verts.size()*3);
+    for (auto v : verts)
+    {
+        flat_verts.push_back(v.x);
+        flat_verts.push_back(v.y);
+        flat_verts.push_back(v.z);
+    }
+
+    std::vector<GLuint> flat_indices(indices.begin(), indices.end());
+
+    return new Mesh(std::move(flat_verts), std::move(flat_indices));
+}
 
 Mesh* Loader::load_stl()
 {

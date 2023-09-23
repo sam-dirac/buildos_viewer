@@ -15,6 +15,7 @@ class Window : public QMainWindow
 public:
     explicit Window(QWidget* parent=0);
     bool load_stl(const QString& filename, bool is_reload=false);
+    bool load_obj(const QString& filename, bool is_reload=false);
     bool load_prev(void);
     bool load_next(void);
 
@@ -29,6 +30,7 @@ public slots:
     void on_open();
     void on_about();
     void on_bad_stl();
+    void on_bad_obj();
     void on_empty_mesh();
     void on_missing_file();
 

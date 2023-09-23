@@ -14,6 +14,7 @@ public:
 
 protected:
     Mesh* load_stl();
+    Mesh* load_obj();
 
     /*  Reads an ASCII stl, starting from the start of the file*/
     Mesh* read_stl_ascii(QFile& file);
@@ -27,6 +28,8 @@ signals:
     void error_bad_stl();
     void error_empty_mesh();
     void error_missing_file();
+
+    void error_bad_obj();
 
 private:
     const QString filename;

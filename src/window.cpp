@@ -278,6 +278,16 @@ void Window::on_bad_stl()
                           "Please export it from the original source, verify, and retry.");
 }
 
+
+void Window::on_bad_obj()
+{
+    QMessageBox::critical(this, "Error",
+                          "<b>Error:</b><br>"
+                          "This <code>.obj</code> file is invalid or corrupted.<br>"
+                          "Please export it from the original source, verify, and retry.");
+}
+
+
 void Window::on_empty_mesh()
 {
     QMessageBox::critical(this, "Error",
@@ -489,10 +499,27 @@ void Window::rebuild_recent_files()
 
 void Window::on_reload()
 {
+
+    qDebug() << "Reloading file";
+
     auto fs = watcher->files();
     if (fs.size() == 1)
     {
-        load_stl(fs[0], true);
+        QFileInfo fileInfo(fs[0]);
+        const auto extension = fileInfo.suffix().toLower().toStdString();
+
+        if(extension == "stl")
+        {
+            load_stl(fs[0], true);
+        }
+        else if(extension == "obj")
+        {
+            load_obj(fs[0], true);
+        }
+        else
+        {
+            QMessageBox::warning(this, tr("Error Loading File"), tr("Unsupported file type."));
+        }
     }
 }
 
@@ -509,6 +536,7 @@ void Window::on_common_view_change(QAction* common)
 
 bool Window::load_stl(const QString& filename, bool is_reload)
 {
+    qDebug() << "Loading STL file: " << filename;
     if (!open_action->isEnabled())  return false;
 
     canvas->set_status("Loading " + filename);
@@ -548,19 +576,90 @@ bool Window::load_stl(const QString& filename, bool is_reload)
     return true;
 }
 
+bool Window::load_obj(const QString& filename, bool is_reload)
+{
+    qDebug() << "Loading OBJ file: " << filename;
+    if (!open_action->isEnabled())  return false;
+
+    canvas->set_status("Loading " + filename);
+
+    qDebug() << "Creating new Loader for OBJ file";
+    Loader* loader = new Loader(this, filename, is_reload);
+    qDebug() << "Loader for OBJ file created";
+
+    connect(loader, &Loader::started,
+              this, &Window::disable_open);
+
+    connect(loader, &Loader::got_mesh,
+            canvas, &Canvas::load_mesh);
+    connect(loader, &Loader::error_bad_obj,
+              this, &Window::on_bad_obj);
+    connect(loader, &Loader::error_empty_mesh,
+              this, &Window::on_empty_mesh);
+    connect(loader, &Loader::error_missing_file,
+              this, &Window::on_missing_file);
+
+    connect(loader, &Loader::finished,
+            loader, &Loader::deleteLater);
+    connect(loader, &Loader::finished,
+              this, &Window::enable_open);
+    connect(loader, &Loader::finished,
+            canvas, &Canvas::clear_status);
+
+    if (filename[0] != ':')
+    {
+        connect(loader, &Loader::loaded_file,
+                  this, &Window::setWindowTitle);
+        connect(loader, &Loader::loaded_file,
+                  this, &Window::set_watched);
+        connect(loader, &Loader::loaded_file,
+                  this, &Window::on_loaded);
+        reload_action->setEnabled(true);
+    }
+
+    qDebug() << "Loader start";
+    loader->start();
+    qDebug() << "Exit true";
+    return true;
+}
+
 void Window::dragEnterEvent(QDragEnterEvent *event)
 {
+    qDebug() << "Drag event initiated";
     if (event->mimeData()->hasUrls())
     {
         auto urls = event->mimeData()->urls();
-        if (urls.size() == 1 && urls.front().path().endsWith(".stl"))
-            event->acceptProposedAction();
+        if (urls.size() == 1) {
+            QString filePath = urls.front().path();
+            if (filePath.endsWith(".stl")) {
+                qDebug() << "Drag event with .stl file";
+                event->acceptProposedAction();
+            } else if (filePath.endsWith(".obj")) {
+                qDebug() << "Drag event with .obj file";
+                event->acceptProposedAction();
+            } else {
+                qDebug() << "Drag event with unsupported file type";
+            }
+        } else {
+            qDebug() << "Drag event with multiple files";
+        }
     }
 }
 
 void Window::dropEvent(QDropEvent *event)
 {
-    load_stl(event->mimeData()->urls().front().toLocalFile());
+    qDebug() << "dropEvent";
+    auto url = event->mimeData()->urls().front();
+    QString filePath = url.path();
+    if (filePath.endsWith(".stl")) {
+        qDebug() << "Drop event with .stl file";
+        load_stl(filePath);
+    } else if (filePath.endsWith(".obj")) {
+        qDebug() << "Drop event with .obj file";
+        load_obj(filePath);
+    } else {
+        qDebug() << "Drop event with unsupported file type";
+    }
 }
 
 void Window::resizeEvent(QResizeEvent *event)
