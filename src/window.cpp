@@ -24,6 +24,7 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
 #include <filesystem>
+#include <StlAPI_Writer.hxx>
 
 
 #include <RWObj_ObjWriterContext.hxx>
@@ -151,6 +152,103 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
             AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
         }
     }
+}
+
+auto StepToStl(std::string stepFilePath) -> QString {
+    qDebug() << "Starting conversion from STEP to OBJ";
+    // Convert STEP to OBJ with OpenCascade
+    std::string objFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".stl";
+    QFile file(QString::fromStdString(objFilePath));
+    if (file.exists()) {
+        qDebug() << YELLOW << "Warning: OBJ file already exists, it will be overwritten: " << RESET << QString::fromStdString(objFilePath);
+    }
+
+    STEPCAFControl_Reader reader;
+    IFSelect_ReturnStatus status = reader.ReadFile(stepFilePath.c_str());
+
+    if (status != IFSelect_RetDone) {
+        qDebug() << "Error reading file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+    qDebug() << "📄 File successfully read: " << QString::fromStdString(stepFilePath);
+    
+    // Create a STEP file
+    Handle(TDocStd_Document) doc;
+    Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+    app->NewDocument("MDTV-CAF", doc);
+    reader.Transfer(doc);
+    
+    Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+    TDF_LabelSequence seq;
+    shapeTool->GetFreeShapes(seq); // Get top-level assemblies
+
+    // If there are no shapes, return
+    if (seq.Length() < 1) {
+        qDebug() << "❌ No shapes found in STEP file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+    
+    bool success = false;
+    // Write the first leaf shape to OBJ file
+    TopoDS_Shape shape;
+    TDF_LabelSequence leafLabels;
+    std::function<void(const TDF_Label&)> visit = [&](const TDF_Label& label) {
+        shape = shapeTool->GetShape(label);
+        std::string strName = "Unnamed";
+        std::string shapeName = "Unknown";
+        ExtractShapeInfo(label, strName, shapeName);
+        if (shapeName == "TopoDS_TSolid") {
+            std::cout << "✅ Found first leaf!" << std::endl;
+            std::cout << "ℹ️  Shape Info: " << strName << " (" << shapeName << ")" << std::endl << std::endl;
+            leafLabels.Append(label);
+            success = true;
+            return;
+        }
+        for (TDF_ChildIterator it(label); it.More(); it.Next()) {
+            visit(it.Value());
+            if (success) return;
+        }
+    };
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        TDF_Label label = seq.Value(i);
+        visit(label);
+        if (success) break;
+    }
+
+    if (!success) {
+        qDebug() << "❌ Failed to find leaf shape in STEP file: " << QString::fromStdString(stepFilePath);
+        return {};
+    }
+
+    // Generate a mesh from the leaf step node
+    BRepMesh_IncrementalMesh mesh(shape, 1.0);
+    
+    // Write the mesh to an STL file
+    StlAPI_Writer aWriter;
+    
+    // Create a Message_ProgressRange object
+    Message_ProgressRange progress;
+
+    // Write the shape to the STL file
+    aWriter.Write(shape, objFilePath.c_str(), progress);
+
+    // Check if the STL file was successfully written
+    if (!std::filesystem::exists(objFilePath)) {
+        qDebug() << "❌ Failed to convert STEP to STL: " << QString::fromStdString(objFilePath);
+        return {};
+    }
+
+    // Verify that the file exists
+    if (!std::filesystem::exists(objFilePath)) {
+        std::cout << "File does not exist." << std::endl;
+        return {};
+    }
+
+    // Render the OBJ in the canvas
+    QString qObjFilePath = QString::fromStdString(objFilePath);
+    qDebug() << "✅ Successfully converted STEP to OBJ: " << qObjFilePath;
+    qDebug() << "\n\n";
+    return qObjFilePath;
 }
 
 auto StepToObj(std::string stepFilePath) -> QString {
@@ -901,8 +999,8 @@ bool Window::load_step(const QString& filename, bool is_reload) {
     sizes << treeWidth << canvasWidth;
     splitter_->setSizes(sizes);
 
-    auto qObjFilePath = StepToObj(stepFilePath);
-    load_obj(qObjFilePath);
+    auto qStlPath = StepToStl(stepFilePath);
+    load_stl(qStlPath);
 
     return true;
 }
