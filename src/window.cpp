@@ -20,12 +20,13 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <TopoDS_Shape.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TDF_ChildIterator.hxx>
+#include <unordered_set>
 
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
 #include <filesystem>
 #include <StlAPI_Writer.hxx>
-
+#include <QSet>
 
 #include <RWObj_ObjWriterContext.hxx>
 #include <RWObj_ObjMaterialMap.hxx>
@@ -144,10 +145,10 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
     }
 }
 
-auto StepToStl(std::string stepFilePath) -> QString {
+auto StepToStls(std::string stepFilePath) -> std::unordered_set<std::string> {
     qDebug() << "Starting conversion from STEP to STL";
     // Convert STEP to STL with OpenCascade
-    std::string stlFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".stl";
+    std::string stlFilePath = stepFilePath.substr(0, stepFilePath.find_last_of("."));
     QFile file(QString::fromStdString(stlFilePath));
     if (file.exists()) {
         qDebug() << "Warning: File already exists, it will be overwritten: " << QString::fromStdString(stlFilePath);
@@ -184,32 +185,43 @@ auto StepToStl(std::string stepFilePath) -> QString {
     // Create a Message_ProgressRange object
     Message_ProgressRange progress;
 
-    // Write all shapes to the STL file
-    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
-        TDF_Label label = seq.Value(i);
+    std::unordered_set<std::string> result_files;
+    // Traverse all shapes and identify leaf nodes
+    Standard_Integer leafNodeIndex = 1;
+    std::function<void(const TDF_Label&)> visit = [&](const TDF_Label& label) {
         TopoDS_Shape shape = shapeTool->GetShape(label);
-        // Generate a mesh from the step node
-        BRepMesh_IncrementalMesh mesh(shape, 1.0);
-        aWriter.Write(shape, stlFilePath.c_str(), progress);
+        if (shape.ShapeType() == TopAbs_COMPOUND) {
+            // This is a node, continue to next shape
+            for (TDF_ChildIterator it(label); it.More(); it.Next()) {
+                visit(it.Value());
+            }
+        }
+        if (shape.ShapeType() == TopAbs_SOLID) {
+            // This is a leaf, generate a mesh from the step node
+            BRepMesh_IncrementalMesh mesh(shape, 1.0);
+            std::string individualStlFilePath = stlFilePath + std::to_string(leafNodeIndex) + ".stl";
+            aWriter.Write(shape, individualStlFilePath.c_str(), progress);
+            result_files.emplace(individualStlFilePath);
+            leafNodeIndex++;
+        }
+    };
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        visit(seq.Value(i));
     }
 
-    // Check if the STL file was successfully written
-    if (!std::filesystem::exists(stlFilePath)) {
-        qDebug() << "❌ Failed to convert STEP to STL: " << QString::fromStdString(stlFilePath);
-        return {};
+    // Check if the STL files were successfully written
+    for (Standard_Integer i = 1; i < leafNodeIndex; i++) {
+        std::string individualStlFilePath = stlFilePath + std::to_string(i) + ".stl";
+        if (!std::filesystem::exists(individualStlFilePath)) {
+            qDebug() << "❌ Failed to convert STEP to STL: " << QString::fromStdString(individualStlFilePath);
+            return {};
+        }
     }
 
-    // Verify that the file exists
-    if (!std::filesystem::exists(stlFilePath)) {
-        std::cout << "File does not exist." << std::endl;
-        return {};
-    }
-
-    // Render the OBJ in the canvas
-    QString qstlFilePath = QString::fromStdString(stlFilePath);
-    qDebug() << "✅ Successfully converted STEP to STL: " << qstlFilePath;
-    qDebug() << "\n\n";
-    return qstlFilePath;
+    // Render the STL in the canvas
+    std::cout << "✅ Successfully converted STEP to STL: " << stlFilePath;
+    std::cout << "\n\n";
+    return result_files;
 }
 
 auto StepToObj(std::string stepFilePath) -> QString {
@@ -958,8 +970,13 @@ bool Window::load_step(const QString& filename, bool is_reload) {
     sizes << treeWidth << canvasWidth;
     splitter_->setSizes(sizes);
 
-    auto qStlPath = StepToStl(stepFilePath);
-    load_stl(qStlPath);
+    auto stls = StepToStls(stepFilePath);
+    if (stls.empty()) {
+        std::cout << "No STLs\n"; 
+        return false;
+    }
+
+    load_stl(QString::fromStdString((*stls.begin())));
 
     return true;
 }

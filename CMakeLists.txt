@@ -2,7 +2,7 @@
 # Original Project Author: Matt Keeter Copyright 2014 -2017
 # Author: Paul Tsouchlos Copyright 2017
 
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.5)
 
 project(fstl)
 
