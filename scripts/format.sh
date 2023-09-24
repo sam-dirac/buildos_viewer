@@ -45,13 +45,18 @@ if [[ $1 == "--apply" ]]; then
   apply_fixes=true
 fi
 
-# Run clang-format checking on the discovered files
-print_color "yellow" "🔎 Running clang-format check..."
+# Run clang-format checking or applying on the discovered files
+if $apply_fixes; then
+  print_color "yellow" "🔎 Applying clang-format..."
+else
+  print_color "yellow" "🔎 Running clang-format check..."
+fi
+
 clang_format_result=""
 for file in $cpp_files; do
   if $apply_fixes; then
     clang-format -style=file -i "$file"
-    print_color "green" "✅ $file"
+    echo -e "\t✅ $file"
   else
     result=$(clang-format -style=file -output-replacements-xml "$file" | grep "<replacement " || true)
     if [[ $result ]]; then
