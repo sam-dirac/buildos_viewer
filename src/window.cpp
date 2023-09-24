@@ -139,7 +139,7 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
 
         for (Standard_Integer i = 1; i <= seq.Length(); i++) {
             TDF_Label label = seq.Value(i);
-            // AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
+            AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
         }
     }
 }
@@ -358,7 +358,6 @@ Window::Window(QWidget *parent) :
 
     splitter_ = new QSplitter(this);
     tree_ = new QTreeView(splitter_);
-    tree_->hide(); // tree_ is hidden by default
     splitter_->addWidget(tree_);
     splitter_->addWidget(canvas);
     setCentralWidget(splitter_);
@@ -879,7 +878,6 @@ bool Window::load_stl(const QString& filename, bool is_reload)
     }
 
     loader->start();
-    tree_->hide();
     return true;
 }
 
@@ -926,7 +924,6 @@ bool Window::load_obj(const QString& filename, bool is_reload)
     }
 
     loader->start();
-    // tree_->hide();
     return true;
 }
 
@@ -954,9 +951,10 @@ bool Window::load_step(const QString& filename, bool is_reload) {
     tree_->show();
 
     QList<int> sizes;
-
-    int treeWidth = tree_->sizeHint().width();
-    int canvasWidth = splitter_->size().width() - treeWidth;
+    int treeWidth = qMax(200, tree_->columnWidth(0) + tree_->columnWidth(1)); // Ensure treeWidth is at least 200
+    int canvasWidth = qMax(200, splitter_->size().width() - treeWidth); // Ensure canvasWidth is at least 200
+    qDebug() << "Tree width: " << treeWidth;
+    qDebug() << "Canvas width: " << canvasWidth;
     sizes << treeWidth << canvasWidth;
     splitter_->setSizes(sizes);
 
