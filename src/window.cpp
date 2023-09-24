@@ -52,16 +52,6 @@ const QString Window::RESET_TRANSFORM_ON_LOAD_KEY = "resetTransformOnLoad";
 #include <RWObj_CafWriter.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 
-// Define some ANSI color codes
-#define RESET   "\033[0m"
-#define BLACK   "\033[30m"      /* Black */
-#define RED     "\033[31m"      /* Red */
-#define GREEN   "\033[32m"      /* Green */
-#define YELLOW  "\033[33m"      /* Yellow */
-#define BLUE    "\033[34m"      /* Blue */
-#define MAGENTA "\033[35m"      /* Magenta */
-#define CYAN    "\033[36m"      /* Cyan */
-#define WHITE   "\033[37m"      /* White */
 
 void ExtractShapeInfo(const TDF_Label& label, std::string& strName, std::string& shapeName) {
     TopoDS_Shape shape;
@@ -114,7 +104,7 @@ void AddShapeToTreeWidget(const TDF_Label& label, QTreeWidgetItem *parentItem) {
 
 void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
 
-    std::cout << GREEN << "👓 Rendering : " << stepFilePath << RESET << std::endl;
+    std::cout << "👓 Rendering : " << stepFilePath << std::endl;
 
     STEPCAFControl_Reader reader;
     IFSelect_ReturnStatus status = reader.ReadFile(stepFilePath.c_str());
@@ -149,18 +139,18 @@ void step_to_tree(std::string stepFilePath, QTreeWidget *treeWidget) {
 
         for (Standard_Integer i = 1; i <= seq.Length(); i++) {
             TDF_Label label = seq.Value(i);
-            AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
+            // AddShapeToTreeWidget(label, treeWidget->invisibleRootItem());
         }
     }
 }
 
 auto StepToStl(std::string stepFilePath) -> QString {
-    qDebug() << "Starting conversion from STEP to OBJ";
-    // Convert STEP to OBJ with OpenCascade
-    std::string objFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".stl";
-    QFile file(QString::fromStdString(objFilePath));
+    qDebug() << "Starting conversion from STEP to STL";
+    // Convert STEP to STL with OpenCascade
+    std::string stlFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".stl";
+    QFile file(QString::fromStdString(stlFilePath));
     if (file.exists()) {
-        qDebug() << YELLOW << "Warning: OBJ file already exists, it will be overwritten: " << RESET << QString::fromStdString(objFilePath);
+        qDebug() << "Warning: File already exists, it will be overwritten: " << QString::fromStdString(stlFilePath);
     }
 
     STEPCAFControl_Reader reader;
@@ -188,67 +178,38 @@ auto StepToStl(std::string stepFilePath) -> QString {
         return {};
     }
     
-    bool success = false;
-    // Write the first leaf shape to OBJ file
-    TopoDS_Shape shape;
-    TDF_LabelSequence leafLabels;
-    std::function<void(const TDF_Label&)> visit = [&](const TDF_Label& label) {
-        shape = shapeTool->GetShape(label);
-        std::string strName = "Unnamed";
-        std::string shapeName = "Unknown";
-        ExtractShapeInfo(label, strName, shapeName);
-        if (shapeName == "TopoDS_TSolid") {
-            std::cout << "✅ Found first leaf!" << std::endl;
-            std::cout << "ℹ️  Shape Info: " << strName << " (" << shapeName << ")" << std::endl << std::endl;
-            leafLabels.Append(label);
-            success = true;
-            return;
-        }
-        for (TDF_ChildIterator it(label); it.More(); it.Next()) {
-            visit(it.Value());
-            if (success) return;
-        }
-    };
-    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
-        TDF_Label label = seq.Value(i);
-        visit(label);
-        if (success) break;
-    }
-
-    if (!success) {
-        qDebug() << "❌ Failed to find leaf shape in STEP file: " << QString::fromStdString(stepFilePath);
-        return {};
-    }
-
-    // Generate a mesh from the leaf step node
-    BRepMesh_IncrementalMesh mesh(shape, 1.0);
-    
     // Write the mesh to an STL file
     StlAPI_Writer aWriter;
     
     // Create a Message_ProgressRange object
     Message_ProgressRange progress;
 
-    // Write the shape to the STL file
-    aWriter.Write(shape, objFilePath.c_str(), progress);
+    // Write all shapes to the STL file
+    for (Standard_Integer i = 1; i <= seq.Length(); i++) {
+        TDF_Label label = seq.Value(i);
+        TopoDS_Shape shape = shapeTool->GetShape(label);
+        // Generate a mesh from the step node
+        BRepMesh_IncrementalMesh mesh(shape, 1.0);
+        aWriter.Write(shape, stlFilePath.c_str(), progress);
+    }
 
     // Check if the STL file was successfully written
-    if (!std::filesystem::exists(objFilePath)) {
-        qDebug() << "❌ Failed to convert STEP to STL: " << QString::fromStdString(objFilePath);
+    if (!std::filesystem::exists(stlFilePath)) {
+        qDebug() << "❌ Failed to convert STEP to STL: " << QString::fromStdString(stlFilePath);
         return {};
     }
 
     // Verify that the file exists
-    if (!std::filesystem::exists(objFilePath)) {
+    if (!std::filesystem::exists(stlFilePath)) {
         std::cout << "File does not exist." << std::endl;
         return {};
     }
 
     // Render the OBJ in the canvas
-    QString qObjFilePath = QString::fromStdString(objFilePath);
-    qDebug() << "✅ Successfully converted STEP to OBJ: " << qObjFilePath;
+    QString qstlFilePath = QString::fromStdString(stlFilePath);
+    qDebug() << "✅ Successfully converted STEP to STL: " << qstlFilePath;
     qDebug() << "\n\n";
-    return qObjFilePath;
+    return qstlFilePath;
 }
 
 auto StepToObj(std::string stepFilePath) -> QString {
@@ -257,7 +218,7 @@ auto StepToObj(std::string stepFilePath) -> QString {
     std::string objFilePath = stepFilePath.substr(0, stepFilePath.find_last_of(".")) + ".obj";
     QFile file(QString::fromStdString(objFilePath));
     if (file.exists()) {
-        qDebug() << YELLOW << "Warning: OBJ file already exists, it will be overwritten: " << RESET << QString::fromStdString(objFilePath);
+        qDebug() << "Warning: File already exists, it will be overwritten: " << QString::fromStdString(objFilePath);
     }
 
     STEPCAFControl_Reader reader;
@@ -965,7 +926,7 @@ bool Window::load_obj(const QString& filename, bool is_reload)
     }
 
     loader->start();
-    tree_->hide();
+    // tree_->hide();
     return true;
 }
 
