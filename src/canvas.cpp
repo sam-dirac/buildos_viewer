@@ -177,7 +177,6 @@ void Canvas::resetTransform() {
 
 void Canvas::load_mesh(Mesh* m, bool is_reload)
 {
-    qDebug() << "Loading mesh into Canvas";
     delete mesh;
     mesh = new GLMesh(m);
     QVector3D lower(m->xmin(), m->ymin(), m->zmin());
@@ -199,7 +198,7 @@ void Canvas::load_mesh(Mesh* m, bool is_reload)
     qDebug() << "Scale: " << scale;
     qDebug() << "Center: " << center;
     qDebug() << "Lower: " << lower;
-    qDebug() << "Upper: " << upper;
+    qDebug() << "Upper: " << upper << Qt::endl << Qt::endl;
     update();
 
     delete m;

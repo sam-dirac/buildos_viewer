@@ -222,19 +222,6 @@ auto StepToObj(std::string stepFilePath) -> QString {
     // Generate a mesh from the leaf step node
     BRepMesh_IncrementalMesh mesh(shape, 1.0);
     
-    // Translate the mesh to center on the origin
-    Bnd_Box boundingBox;
-    BRepBndLib::Add(shape, boundingBox);
-    gp_Pnt center = boundingBox.CornerMax().XYZ() / 2 + boundingBox.CornerMin().XYZ() / 2;
-    gp_Trsf translation;
-    translation.SetTranslation(center, gp_Pnt(0, 0, 0));
-    shape.Move(translation);
-    
-    // Print debug information about the translation
-    std::cout << "Translation Info: " << std::endl;
-    std::cout << "Center: " << center.X() << ", " << center.Y() << ", " << center.Z() << std::endl;
-    std::cout << "Translation: " << translation.TranslationPart().X() << ", " << translation.TranslationPart().Y() << ", " << translation.TranslationPart().Z() << std::endl;
-    
     // Write the mesh to an OBJ file
     RWObj_CafWriter aWriter(objFilePath.c_str());
     
@@ -247,21 +234,6 @@ auto StepToObj(std::string stepFilePath) -> QString {
         qDebug() << "❌ Failed to convert STEP to OBJ: " << QString::fromStdString(objFilePath);
         return {};
     }
-
-    // Open the OBJ file
-    std::ifstream objFile(objFilePath);
-    if (!objFile.is_open()) {
-        qDebug() << "❌ Failed to open OBJ file: " << QString::fromStdString(objFilePath);
-        return {};
-    }
-
-    std::string line;
-    while (std::getline(objFile, line)) {
-        std::cout << line << std::endl;
-    }
-
-    // Close the file
-    objFile.close();
 
     // Verify that the file exists
     if (!std::filesystem::exists(objFilePath)) {
@@ -959,17 +931,13 @@ void Window::dragEnterEvent(QDragEnterEvent *event)
 
 void Window::dropEvent(QDropEvent *event)
 {
-    qDebug() << "dropEvent";
     auto url = event->mimeData()->urls().front();
     QString filePath = url.path();
     if (filePath.endsWith(".stl")) {
-        qDebug() << "Drop event with .stl file";
         load_stl(filePath);
     } else if (filePath.endsWith(".obj")) {
-        qDebug() << "Drop event with .obj file";
         load_obj(filePath);
     } else if (filePath.endsWith(".step")) {
-        qDebug() << "Drop event with .step file";
         load_step(filePath);
     } else {
         qDebug() << "Drop event with unsupported file type";
