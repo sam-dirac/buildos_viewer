@@ -54,13 +54,11 @@ set(Icon_Resource exe/fstl.rc)
 set(OpenGL_GL_PREFERENCE GLVND)
 
 #find required packages. 
+
 find_package(Qt5 5.14 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
-
 find_package(OpenCASCADE REQUIRED)
-message("OpenCASCADE Include Dir: ${OpenCASCADE_INCLUDE_DIR}")
-message("OpenCASCADE Libraries: ${OpenCASCADE_LIBRARIES}")
 
 
 #add resources to RCC
