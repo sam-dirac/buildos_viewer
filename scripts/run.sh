@@ -28,6 +28,18 @@ exit_on_failure() {
   fi
 }
 
+executable_location() {
+  if [ "$(uname)" = "Darwin" ]; then
+    echo "./fstl.app/Contents/MacOS/fstl"
+  else
+    echo "./fstl"
+  fi
+}
+
+###################################################
+# Main
+###################################################
+
 if [ ! -d "build" ]; then
   print_color "blue" "🔨 Creating build directory..."
   mkdir build
@@ -35,8 +47,10 @@ if [ ! -d "build" ]; then
 fi
 cd build
 
+fstl_executable=$(executable_location)
+
 print_color "blue" "🔨 Removing old fstl executable..."
-rm ./fstl.app/Contents/MacOS/fstl
+rm $fstl_executable
 
 print_color "blue" "🔨 Running cmake..."
 cmake -DCMAKE_PREFIX_PATH=/usr/local/Cellar/qt/5.15.0/ ..
@@ -49,7 +63,7 @@ exit_on_failure
 cd ..
 
 print_color "blue" "🔨 Running fstl..."
-./build/fstl.app/Contents/MacOS/fstl ~/Desktop/3DFiles/LegoMan.step
+"./build/$fstl_executable" ~/Desktop/3DFiles/LegoMan.step
 exit_on_failure
 
 
