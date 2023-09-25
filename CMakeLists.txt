@@ -58,16 +58,7 @@ set(OpenGL_GL_PREFERENCE GLVND)
 find_package(Qt5 5.14 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
-
-message("OpenCASCADE_DIR: $ENV{OpenCASCADE_DIR}")
 find_package(OpenCASCADE REQUIRED)
-message("OpenCASCADE Include Dir: ${OpenCASCADE_INCLUDE_DIR}")
-message("OpenCASCADE Libraries: ${OpenCASCADE_LIBRARIES}")
-
-message("VTK_DIR: $ENV{VTK_DIR}")
-find_package(VTK REQUIRED)
-message("VTK Include Dir: ${VTK_INCLUDE_DIRS}")
-message("VTK Libraries: ${VTK_LIBRARIES}")
 
 
 #add resources to RCC
