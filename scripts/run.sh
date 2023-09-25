@@ -1,14 +1,21 @@
-#!/usr/bin/env bash
-
-declare -A colors
-colors[red]=31
-colors[green]=32
-colors[blue]=34
-
+#!/usr/bin/env sh
 print_color() {
-  local color=${colors[$1]}
+  local color=$1
   local message=$2
-  echo -e "\e[${color}m${message}\e[0m"
+  case "$color" in
+    "red")
+      printf "\e[31m%s\e[0m\n" "$message"
+      ;;
+    "green")
+      printf "\e[32m%s\e[0m\n" "$message"
+      ;;
+    "blue")
+      printf "\e[34m%s\e[0m\n" "$message"
+      ;;
+    *)
+      printf "%s\n" "$message"
+      ;;
+  esac
 }
 
 exit_on_failure() {
@@ -44,6 +51,7 @@ cd ..
 print_color "blue" "🔨 Running fstl..."
 ./build/fstl.app/Contents/MacOS/fstl ~/Desktop/3DFiles/LegoMan.step
 exit_on_failure
+
 
 
 

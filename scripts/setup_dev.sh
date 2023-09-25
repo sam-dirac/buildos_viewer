@@ -4,31 +4,11 @@
 # Helper Methods
 ##############################################################################
 print_in_green() {
-    echo -e "\e[32m$1\e[0m"
+    printf "\033[32m%s\033[0m\n" "$1"
 }
 
 print_in_yellow() {
-    echo -e "\e[33m$1\e[0m"
-}
-
-print_package_info() {
-    local package=$1
-    local command=${2:-$1}
-    local location=$(which $command 2> /dev/null)
-    if [ -z "$location" ]; then
-        # If the command is not found, check if it's a library
-        local version=$(dpkg-query -W -f='${Version}' $package 2> /dev/null)
-        if [ -z "$version" ]; then
-            echo -e "\e[31m❌ Could not find installation path for $package.\e[0m"
-            exit 1
-        else
-            echo -e "\e[32m✅ Found $package installed with version: $version.\e[0m"
-            echo $version
-        fi
-    else
-        echo -e "\e[32m✅ Found installation path for $package: $location.\e[0m"
-        echo $location
-    fi
+    printf "\033[33m%s\033[0m\n" "$1"
 }
 
 exit_on_failure() {
@@ -44,49 +24,71 @@ exit_on_failure() {
 }
 
 print_in_red() {
-    echo -e "\e[31m$1\e[0m"
+    printf "\033[31m%s\033[0m\n" "$1"
 }
 
 search_for_file() {
     local filename=$1
-    local likely_locations=("/usr/local/lib/opencascade/cmake/opencascade" "/usr/local/Cellar/opencascade/7.7.2_1/lib/cmake/opencascade")
+    shift
+    local likely_locations=("$@")
     local result=""
+    print_in_yellow "🔍 Searching for file '$filename'..."
+    for location in ${likely_locations[@]}; do
+        print_in_yellow "📍 Checking location: $location"
+    done
+    echo ""
 
     # First, search in the likely locations
     for location in "${likely_locations[@]}"; do
-        if [ -f "$location/$filename" ]; then
-            result="$location/$filename"
+        result=$(find "$location" -name "$filename" 2>/dev/null)
+        if [ -n "$result" ]; then
             break
         fi
     done
 
-    # If not found in the likely locations, perform an exhaustive search
+    if [ -n "$result" ]; then
+        print_in_green "✔️  File found at: $result"
+        return
+    fi
+    
+
+    # If the file was not found in the likely locations, fall back to an exhaustive search
     if [ -z "$result" ]; then
-        result=$(find / -name $filename 2>/dev/null)
+        result=$(find / -name "$filename" 2>/dev/null)
+        # Debugging the exhaustive search
+        if [ -z "$result" ]; then
+            print_in_red "❌ Exhaustive search failed to find the file."
+        else
+            print_in_green "✔️  Exhaustive search found the file at: $result"
+        fi
     fi
 
     if [ -z "$result" ]; then
-        echo -e "\e[31m❌ Could not find $filename.\e[0m"
+        printf "\033[31m❌ Could not find %s.\033[0m\n" "$filename"
         exit 1
     else
         echo $result
     fi
 }
 
+uninstall_deps_linux() {
+    brew uninstall opencascade
+    exit_on_failure "Uninstalling dependencies"
+}
+
 install_deps_linux() {
-    sudo apt-get install -y clang-format qtbase5-dev liboce-modeling-dev liboce-ocaf-dev libvtk7-dev
+    if brew ls --versions opencascade > /dev/null; then
+        print_in_green "✅ OpenCASCADE is already installed"
+    else
+        brew install opencascade
+        exit_on_failure "Installing OpenCASCADE"
+    fi
+    # Search for a cmake config file for Open Cascade
+    search_for_file "OpenCASCADEConfig.cmake" "/home/linuxbrew/.linuxbrew/Cellar/opencascade"
+    exit_on_failure "Searching for OpenCASCADEConfig.cmake"
+
+    sudo apt-get install -y clang-format qtbase5-dev
     exit_on_failure "Installing dependencies"
-
-    local opencascade_config_path=$(search_for_file "OpenCASCADEConfig.cmake")
-    local opencascade_dir=$(dirname "$opencascade_config_path")
-    export OpenCASCADE_DIR=$opencascade_dir
-    echo "🗂️ OpenCASCADE_DIR set to $OpenCASCADE_DIR"
-
-    local vtk_config_path=$(search_for_file "VTKConfig.cmake")
-    local vtk_dir=$(dirname "$vtk_config_path")
-    export VTK_DIR=$vtk_dir
-    echo "🗂️ VTK_DIR set to $VTK_DIR"
-    print_in_green "✅ Environment variables set for Linux"
 }
 
 install_deps_mac() {
@@ -101,25 +103,53 @@ install_deps_mac() {
 }
 
 install_deps_windows() {
-    echo "Unsupported architecture: $OSTYPE"
+    printf "Unsupported architecture: %s\n" "$OSTYPE"
     exit 1
 }
 
 ##############################################################################
 # Main
 ##############################################################################
-
 print_in_yellow "🚧 Setting up development for BuildOS Viewer..."
 echo ""
-
-print_in_yellow "🔧 Installing dependencies..."
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    install_deps_linux
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-    install_deps_mac
+if [[ -z "$1" ]]; then
+    print_in_yellow "🔧 Installing dependencies..."
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        install_deps_linux
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        install_deps_mac
+    else
+        install_deps_windows
+    fi
+    echo ""
+    print_in_green "✅ Installation is now complete!"
+    exit 0
+elif [[ "$1" == "--help" ]]; then
+    echo "Usage: setup_dev.sh [OPTION]"
+    echo "Setup development environment for BuildOS Viewer."
+    echo ""
+    echo "Options:"
+    echo "--uninstall    Uninstall dependencies"
+    echo "--help         Display this help and exit"
+    exit 0
+elif [[ "$1" == "--uninstall" ]]; then
+    print_in_yellow "🔧 Uninstalling dependencies..."
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        uninstall_deps_linux
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        uninstall_deps_mac
+    else
+        uninstall_deps_windows
+    fi
+    echo ""
+    print_in_green "✅ Uninstallation is now complete!"
+    exit 0
 else
-    install_deps_windows
+    echo "Invalid option: $1"
+    echo "Try 'setup_dev.sh --help' for more information."
+    exit 1
 fi
-echo ""
 
 print_in_green "✅ Development is now set up!"
+
+
