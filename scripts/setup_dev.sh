@@ -1,40 +1,19 @@
 #!/usr/bin/env bash
 
+source scripts/utilities.sh
+
 ##############################################################################
 # Helper Methods
 ##############################################################################
-print_in_green() {
-    printf "\033[32m%s\033[0m\n" "$1"
-}
-
-print_in_yellow() {
-    printf "\033[33m%s\033[0m\n" "$1"
-}
-
-exit_on_failure() {
-    local exit_code=$?
-    local message=$1
-    if [ $exit_code -ne 0 ]; then
-        print_in_red "❌ $message failed."
-        exit $exit_code
-    else
-        print_in_green "✅ $message succeeded."
-        echo "" 
-    fi
-}
-
-print_in_red() {
-    printf "\033[31m%s\033[0m\n" "$1"
-}
 
 search_for_file() {
     local filename=$1
     shift
     local likely_locations=("$@")
     local result=""
-    print_in_yellow "🔍 Searching for file '$filename'..."
+    print_color "yellow" "🔍 Searching for file '$filename'..."
     for location in ${likely_locations[@]}; do
-        print_in_yellow "📍 Checking location: $location"
+        print_color "yellow" "📍 Checking location: $location"
     done
     echo ""
 
@@ -47,7 +26,7 @@ search_for_file() {
     done
 
     if [ -n "$result" ]; then
-        print_in_green "✔️  File found at: $result"
+        print_color "green" "✔️  File found at: $result"
         return
     fi
     
@@ -57,9 +36,9 @@ search_for_file() {
         result=$(find / -name "$filename" 2>/dev/null)
         # Debugging the exhaustive search
         if [ -z "$result" ]; then
-            print_in_red "❌ Exhaustive search failed to find the file."
+            print_color "red" "❌ Exhaustive search failed to find the file."
         else
-            print_in_green "✔️  Exhaustive search found the file at: $result"
+            print_color "green" "✔️  Exhaustive search found the file at: $result"
         fi
     fi
 
@@ -78,7 +57,7 @@ uninstall_deps_linux() {
 
 install_deps_linux() {
     if brew ls --versions opencascade > /dev/null; then
-        print_in_green "✅ OpenCASCADE is already installed"
+        print_color "green" "✅ OpenCASCADE is already installed"
     else
         brew install opencascade
         exit_on_failure "Installing OpenCASCADE"
@@ -99,7 +78,7 @@ install_deps_mac() {
     export CMAKE_PREFIX_PATH="/usr/local/Cellar/opencascade/7.7.2_1:$CMAKE_PREFIX_PATH"
     export Qt5_DIR=/usr/local/Cellar/qt@5/5.15.10_1/lib/cmake/Qt5
     export OpenCASCADE_DIR=/usr/local/Cellar/opencascade/7.7.2_1/lib/cmake/opencascade
-    print_in_green "✅ Environment variables set for MacOS"
+    print_color "green" "✅ Environment variables set for MacOS"
 }
 
 install_deps_windows() {
@@ -110,10 +89,10 @@ install_deps_windows() {
 ##############################################################################
 # Main
 ##############################################################################
-print_in_yellow "🚧 Setting up development for BuildOS Viewer..."
+print_color "yellow" "🚧 Setting up development for BuildOS Viewer..."
 echo ""
 if [[ -z "$1" ]]; then
-    print_in_yellow "🔧 Installing dependencies..."
+    print_color "yellow" "🔧 Installing dependencies..."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         install_deps_linux
     elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -122,7 +101,7 @@ if [[ -z "$1" ]]; then
         install_deps_windows
     fi
     echo ""
-    print_in_green "✅ Installation is now complete!"
+    print_color "green" "✅ Installation is now complete!"
     exit 0
 elif [[ "$1" == "--help" ]]; then
     echo "Usage: setup_dev.sh [OPTION]"
@@ -133,7 +112,7 @@ elif [[ "$1" == "--help" ]]; then
     echo "--help         Display this help and exit"
     exit 0
 elif [[ "$1" == "--uninstall" ]]; then
-    print_in_yellow "🔧 Uninstalling dependencies..."
+    print_color "yellow" "🔧 Uninstalling dependencies..."
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         uninstall_deps_linux
     elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -142,7 +121,7 @@ elif [[ "$1" == "--uninstall" ]]; then
         uninstall_deps_windows
     fi
     echo ""
-    print_in_green "✅ Uninstallation is now complete!"
+    print_color "green" "✅ Uninstallation is now complete!"
     exit 0
 else
     echo "Invalid option: $1"
@@ -150,6 +129,6 @@ else
     exit 1
 fi
 
-print_in_green "✅ Development is now set up!"
+print_color "green" "✅ Development is now set up!"
 
 

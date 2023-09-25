@@ -1,23 +1,6 @@
 #!/usr/bin/env bash
 
-#####################################################
-# Helper Methods
-#####################################################
-print_color() {
-  local color=$1
-  local message=$2
-  case $color in
-    "black") printf "\e[30m%s\e[0m\n" "$message" ;;
-    "red") printf "\e[31m%s\e[0m\n" "$message" ;;
-    "green") printf "\e[32m%s\e[0m\n" "$message" ;;
-    "yellow") printf "\e[33m%s\e[0m\n" "$message" ;;
-    "blue") printf "\e[34m%s\e[0m\n" "$message" ;;
-    "magenta") printf "\e[35m%s\e[0m\n" "$message" ;;
-    "cyan") printf "\e[36m%s\e[0m\n" "$message" ;;
-    "white") printf "\e[37m%s\e[0m\n" "$message" ;;
-    *) printf "%s\n" "$message" ;;
-  esac
-}
+source scripts/utilities.sh
 
 #####################################################
 # Main
@@ -70,7 +53,7 @@ done
 
 if [[ $clang_format_result ]]; then
   num_failed_files=$(echo -e "$clang_format_result" | wc -l | bc)
-  print_color "red" "🚫 clang-format check failed on $num_failed_files files: "
+  print_color "red" "🚫 clang-format check failed on $num_failed_files files"
   exit 1
 else
   print_color "green" "✅ clang-format check passed."
